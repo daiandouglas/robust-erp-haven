@@ -8,7 +8,7 @@ import {
   Boxes, 
   ShoppingCart, 
   Warehouse, 
-  Tool, 
+  Wrench, // Changed Tool to Wrench
   CalendarClock, 
   Users, 
   Settings, 
@@ -85,7 +85,7 @@ const Sidebar = ({ isOpen, setIsOpen }: SidebarProps) => {
     },
     {
       label: 'Operations',
-      icon: Tool,
+      icon: Wrench, // Changed Tool to Wrench
       path: '/operations',
       permission: 'request',
     },

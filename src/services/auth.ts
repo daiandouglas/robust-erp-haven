@@ -1,4 +1,6 @@
 
+import React from 'react';
+
 // This is a placeholder authentication service
 // In a real implementation, this would connect to Supabase Auth
 
