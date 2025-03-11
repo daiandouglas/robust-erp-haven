@@ -1,8 +1,6 @@
 
+import { supabase } from "@/integrations/supabase/client";
 import React from 'react';
-
-// This is a placeholder authentication service
-// In a real implementation, this would connect to Supabase Auth
 
 type User = {
   id: string;
@@ -18,36 +16,11 @@ type AuthState = {
   loading: boolean;
 };
 
-// Mock data for demonstration
-const MOCK_USERS: User[] = [
-  {
-    id: '1',
-    email: 'admin@example.com',
-    name: 'Admin User',
-    role: 'admin',
-    avatar: 'https://ui-avatars.com/api/?name=Admin+User&background=0D8ABC&color=fff',
-  },
-  {
-    id: '2',
-    email: 'approver@example.com',
-    name: 'Approver User',
-    role: 'approver',
-    avatar: 'https://ui-avatars.com/api/?name=Approver+User&background=7988EC&color=fff',
-  },
-  {
-    id: '3',
-    email: 'requester@example.com',
-    name: 'Requester User',
-    role: 'requester',
-    avatar: 'https://ui-avatars.com/api/?name=Requester+User&background=13CE66&color=fff',
-  },
-];
-
 // Initial state
 let authState: AuthState = {
   isAuthenticated: false,
   user: null,
-  loading: false,
+  loading: true,
 };
 
 // Event listeners
@@ -59,82 +32,136 @@ const updateState = (newState: Partial<AuthState>) => {
   listeners.forEach((listener) => listener(authState));
 };
 
+// Initialize auth state
+supabase.auth.getSession().then(({ data: { session } }) => {
+  if (session?.user) {
+    updateState({
+      isAuthenticated: true,
+      user: {
+        id: session.user.id,
+        email: session.user.email || '',
+        name: session.user.user_metadata.name || 'User',
+        role: 'requester',
+        avatar: `https://ui-avatars.com/api/?name=${session.user.email}&background=0D8ABC&color=fff`,
+      },
+      loading: false,
+    });
+  } else {
+    updateState({ loading: false });
+  }
+});
+
+// Subscribe to auth changes
+supabase.auth.onAuthStateChange(async (event, session) => {
+  if (session?.user) {
+    updateState({
+      isAuthenticated: true,
+      user: {
+        id: session.user.id,
+        email: session.user.email || '',
+        name: session.user.user_metadata.name || 'User',
+        role: 'requester',
+        avatar: `https://ui-avatars.com/api/?name=${session.user.email}&background=0D8ABC&color=fff`,
+      },
+      loading: false,
+    });
+  } else {
+    updateState({ isAuthenticated: false, user: null, loading: false });
+  }
+});
+
 export const auth = {
-  // Subscribe to auth state changes
   subscribe: (callback: (state: AuthState) => void) => {
     listeners.add(callback);
     callback(authState);
-
     return () => {
       listeners.delete(callback);
     };
   },
 
-  // Get current user
   getCurrentUser: () => authState.user,
 
-  // Get auth state
   getAuthState: () => authState,
 
-  // Sign in
   signIn: async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
     try {
       updateState({ loading: true });
       
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 800));
-      
-      // Find user by email (in a real app, this would be a server authentication)
-      const user = MOCK_USERS.find(u => u.email === email);
-      
-      if (user && password === 'password') { // In a real app, proper password validation would happen
-        updateState({ isAuthenticated: true, user, loading: false });
-        return { success: true };
-      }
-      
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) throw error;
+
+      return { success: true };
+    } catch (error: any) {
+      console.error('Sign in error:', error);
+      return { 
+        success: false, 
+        error: error.message || 'An error occurred during sign in' 
+      };
+    } finally {
       updateState({ loading: false });
-      return { success: false, error: 'Invalid email or password' };
-    } catch (error) {
-      updateState({ loading: false });
-      return { success: false, error: 'An error occurred during sign in' };
     }
   },
 
-  // Sign out
-  signOut: async (): Promise<void> => {
+  signUp: async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
     try {
       updateState({ loading: true });
       
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
-      updateState({ isAuthenticated: false, user: null, loading: false });
-    } catch (error) {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: window.location.origin,
+        },
+      });
+
+      if (error) throw error;
+
+      return { 
+        success: true,
+        error: 'Please check your email to confirm your account.' 
+      };
+    } catch (error: any) {
+      console.error('Sign up error:', error);
+      return { 
+        success: false, 
+        error: error.message || 'An error occurred during sign up' 
+      };
+    } finally {
       updateState({ loading: false });
-      throw error;
     }
   },
 
-  // Check if user has permission
+  signOut: async (): Promise<void> => {
+    try {
+      updateState({ loading: true });
+      await supabase.auth.signOut();
+    } catch (error) {
+      console.error('Sign out error:', error);
+      throw error;
+    } finally {
+      updateState({ loading: false });
+    }
+  },
+
   hasPermission: (permission: string): boolean => {
     if (!authState.isAuthenticated || !authState.user) {
       return false;
     }
 
-    // Simple role-based permission check
     const role = authState.user.role;
     
-    // Admin has all permissions
     if (role === 'admin') {
       return true;
     }
     
-    // Approver has approver and requester permissions
     if (role === 'approver' && ['approve', 'request'].includes(permission)) {
       return true;
     }
     
-    // Requester has only requester permissions
     if (role === 'requester' && permission === 'request') {
       return true;
     }
@@ -143,7 +170,6 @@ export const auth = {
   },
 };
 
-// Hook for components
 export const useAuth = () => {
   const [state, setState] = React.useState<AuthState>(authState);
   
