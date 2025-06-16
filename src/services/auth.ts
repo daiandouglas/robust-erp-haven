@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import React from 'react';
 
@@ -71,6 +70,15 @@ supabase.auth.onAuthStateChange(async (event, session) => {
 });
 
 export const auth = {
+  // Método auxiliar para testes
+  _resetState: (): void => {
+    authState = {
+      isAuthenticated: false,
+      user: null,
+      loading: false,
+    };
+  },
+
   subscribe: (callback: (state: AuthState) => void) => {
     listeners.add(callback);
     callback(authState);
